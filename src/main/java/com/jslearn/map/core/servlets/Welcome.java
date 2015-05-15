@@ -15,6 +15,8 @@ import javax.servlet.http.HttpServletResponse;
  * @author Aleksandr_Ishimtcev
  */
 public class Welcome extends HttpServlet {
+    Connection connection = null;
+    Statement statement = null;
     private String message;
 
     public void init() {
@@ -22,48 +24,76 @@ public class Welcome extends HttpServlet {
     }
 
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-
         req.setAttribute("message", getDBResult());
         req.getRequestDispatcher("welcome.jsp").forward(req, resp);
     }
 
     protected String getDBResult() {
-        Connection connection = null;
-        Statement statement = null;
-        String result = "";
-        String createTableSQL = "CREATE TABLE DBUSER("
-                                + "USER_ID NUMBER(5) NOT NULL, "
-                                + "USERNAME VARCHAR(20) NOT NULL, "
-                                + "CREATED_BY VARCHAR(20) NOT NULL, "
-                                + "CREATED_DATE DATE NOT NULL, " + "PRIMARY KEY (USER_ID) "
-                                + ")";
+        if (openConnection()) {
+            deleteTable();
+        }
+        closeConnection();
+
+        return message;
+    }
+
+    protected boolean openConnection() {
         try {
             connection = getDBConnection();
             statement = connection.createStatement();
-            statement.execute(createTableSQL);
-            result =  "Successfully connected";
         } catch (ClassNotFoundException e) {
-            result = "Driver not found: " + e.getMessage();
+            message = "Driver not found: " + e.getMessage();
+            return false;
         } catch (SQLException e) {
-            result = "Connection error: " + e.getMessage();
-        } finally {
-            if (statement != null) {
-                try {
-                    statement.close();
-                } catch (SQLException e) {
-                    result = "Error while closing: " + e.getMessage();
-                }
-            }
-            if (connection != null) {
-                try {
-                    connection.close();
-                } catch (SQLException e) {
-                    result = "Error while closing: " + e.getMessage();
-                }
+            message = "Connection error: " + e.getMessage();
+            return false;
+        }
+        return true;
+    }
+
+    protected void closeConnection() {
+        if (statement != null) {
+            try {
+                statement.close();
+            } catch (SQLException e) {
             }
         }
+        if (connection != null) {
+            try {
+                connection.close();
+            } catch (SQLException e) {
+            }
+        }
+    }
 
-        return result;
+    protected boolean createTable() {
+        String createTableSQL = "CREATE TABLE DBUser("
+                                + "userID INT(5) NOT NULL, "
+                                + "userName VARCHAR(20) NOT NULL, "
+                                + "createdBy VARCHAR(20) NOT NULL, "
+                                + "createdDate DATE NOT NULL, "
+                                + "PRIMARY KEY (userID) "
+                                + ");";
+
+        return sendQuery(createTableSQL);
+    }
+
+    protected boolean deleteTable() {
+        String dropTableSQL = "DROP TABLE Administrator;";
+
+        return sendQuery(dropTableSQL);
+    }
+
+    protected boolean sendQuery(String query) {
+        try {
+            statement.execute(query);
+        } catch (SQLException e) {
+            message = "Error in query sending: " + e.getMessage();
+            return false;
+        }
+
+        message = "Done: " + query;
+        return true;
     }
 
     protected Connection getDBConnection() throws ClassNotFoundException, SQLException {
